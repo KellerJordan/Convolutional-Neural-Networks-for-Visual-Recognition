@@ -44,8 +44,8 @@ def svm_loss_naive(W, X, y, reg):
   dW /= num_train
 
   # Add regularization to the loss.
-  loss += reg * np.sum(W * W)
-  dW += 2 * reg * W
+  loss += 0.5 * reg * np.sum(W * W)
+  dW += reg * W
 
   #############################################################################
   # TODO:                                                                     #
@@ -69,20 +69,18 @@ def svm_loss_vectorized(W, X, y, reg):
   loss = 0.0
   dW = np.zeros(W.shape) # initialize the gradient as zero
 
-  assert X is not None
   #############################################################################
   # TODO:                                                                     #
   # Implement a vectorized version of the structured SVM loss, storing the    #
   # result in loss.                                                           #
   #############################################################################
   num_train = X.shape[0]
-  num_classes = W.shape[1]
   scores = X.dot(W)
-  correct_class_score = scores[np.arange(num_train), y].reshape(-1, 1)
+  correct_class_score = scores[np.arange(num_train), y][:, None]
   margin = np.maximum(0, scores - correct_class_score + 1)
   margin[np.arange(num_train), y] = 0
-  loss = margin.sum() / num_train
-  loss += reg * np.sum(W * W)
+  loss += margin.sum() / num_train
+  loss += 0.5 * reg * np.sum(W * W)
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -97,13 +95,10 @@ def svm_loss_vectorized(W, X, y, reg):
   # to reuse some of the intermediate values that you used to compute the     #
   # loss.                                                                     #
   #############################################################################
-  dW += (X.T).dot(margin > 0)
-  wrong_count = (margin > 0).sum(axis=1)
-  one_hot = np.zeros([num_train, num_classes])
-  one_hot[np.arange(num_train), y] = 1
-  dW -= (wrong_count * X.T).dot(one_hot)
-  dW /= num_train
-  dW += 2 * reg * W
+  penalty_ex = (margin > 0).astype(np.int64)
+  penalty_ex[np.arange(num_train), y] -= penalty_ex.sum(axis=1)
+  dW += (X.T).dot(penalty_ex) / num_train
+  dW += reg * W
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
