@@ -152,3 +152,28 @@ def adam(x, dx, config=None):
     ###########################################################################
 
     return next_x, config
+
+## tried to use SGD to update the learning rate of SGD itself.. didn't work better than vanilla SGD
+# def meta_sgd(x, dx, config=None):
+#     if config is None: config = {}
+# #     config.setdefault('v', np.zeros_like(x))
+#     config.setdefault('lr', 1e-2)
+#     config.setdefault('mu', 1e-5)
+#     config.setdefault('epsilon', 1e-8)
+#     config.setdefault('t', 1)
+#     config.setdefault('dx_prev', np.zeros_like(x))
+    
+#     next_x = None
+#     config['lr'] = .99*config['lr'] + config['mu']*np.sum(config['dx_prev']*dx)
+#     next_x = x - config['lr']*dx
+# #     config['v'] = config['v'] + config['mu']*config['dx_prev']*dx
+# #     next_x = x - config['v']*dx
+#     config['dx_prev'] = dx
+    
+#     if config['t'] % 200 == 0:
+#         print(config['lr'])
+# #         print('mean', np.mean(config['v']))
+# #         print('max', np.max(config['v']))
+# #         print('min', np.min(config['v']))
+#     config['t'] += 1
+#     return next_x, config
