@@ -383,7 +383,17 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    pad, stride = conv_param['pad'], conv_param['stride']
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
+    Hp = 1 + (H + 2 * pad - HH) // stride
+    Wp = 1 + (W + 2 * pad - WW) // stride
+    out = np.zeros((N, F, Hp, Wp))
+    x_pad = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+    for i in range(Hp):
+        for j in range(Wp):
+            region = x_pad[..., i*stride:i*stride+HH, j*stride:j*stride+WW]
+            out[..., i, j] = np.tensordot(region, w, axes=((3,2,1),(3,2,1))) + b
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -408,7 +418,23 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x, w, b, conv_param = cache
+    pad, stride = conv_param['pad'], conv_param['stride']
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
+    Hp = 1 + (H + 2 * pad - HH) // stride
+    Wp = 1 + (W + 2 * pad - WW) // stride
+    
+    x_pad = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+    dw = np.zeros_like(w)
+    dx_pad = np.zeros_like(x_pad)
+    for i in range(Hp):
+        for j in range(Wp):
+            region = x_pad[..., i*stride:i*stride+HH, j*stride:j*stride+WW]
+            dw += np.tensordot(dout[..., i, j], region, axes=[0, 0])
+            dx_pad[..., i*stride:i*stride+HH, j*stride:j*stride+WW] += np.tensordot(dout[..., i, j], w, axes=[1, 0])
+    dx = dx_pad[:,:,pad:-pad,pad:-pad]
+    db = dout.sum(axis=(0,2,3))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -434,7 +460,15 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max pooling forward pass                            #
     ###########################################################################
-    pass
+    HH, WW, stride = pool_param['pool_height'], pool_param['pool_width'], pool_param['stride']
+    N, C, H, W = x.shape
+    Hp = 1 + (H - HH) // stride
+    Wp = 1 + (W - WW) // stride
+    
+    out = np.zeros((N, C, Hp, Wp))
+    for i in range(Hp):
+        for j in range(Wp):
+            out[..., i, j] = np.max(x[..., i*stride:i*stride+HH, j*stride:j*stride+WW], axis=(2, 3))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -457,7 +491,18 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the max pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param = cache
+    HH, WW, stride = pool_param['pool_height'], pool_param['pool_width'], pool_param['stride']
+    N, C, H, W = x.shape
+    Hp = 1 + (H - HH) // stride
+    Wp = 1 + (W - WW) // stride
+
+    dx = np.zeros_like(x)
+    for i in range(Hp):
+        for j in range(Wp):
+            maxes = np.max(x[..., i*stride:i*stride+HH, j*stride:j*stride+WW], axis=(2, 3), keepdims=True)
+            mask = x[..., i*stride:i*stride+HH, j*stride:j*stride+WW] == maxes
+            dx[..., i*stride:i*stride+HH, j*stride:j*stride+WW] += mask * dout[..., i, j, None, None]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
