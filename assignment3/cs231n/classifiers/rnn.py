@@ -139,26 +139,43 @@ class CaptioningRNN(object):
         ############################################################################
         # forward pass --
         # project input features to initial state
-        initial_state, cache_proj = affine_forward(features, W_proj, b_proj)
+        h0, cache_proj = affine_forward(features, W_proj, b_proj)
+        
         # convert input caption to word embeddings
         input_vectors, cache_embed = word_embedding_forward(captions_in, W_embed)
+        
         # run recurrent cells on initial state and word vectors
         if self.cell_type == 'rnn':
-            hidden_states, cache_rnn = rnn_forward(input_vectors, initial_state, Wx, Wh, b)
+            h, cache_rnn = rnn_forward(input_vectors, h0, Wx, Wh, b)
         elif self.cell_type == 'lstm':
-            pass
+            h, cache_lstm = lstm_forward(input_vectors, h0, Wx, Wh, b)
+        
         # project hidden states to un-normalized log probability of vocab vectors
-        output_vectors, cache_vocab = temporal_affine_forward(hidden_states, W_vocab, b_vocab)
+        scores, cache_vocab = temporal_affine_forward(h, W_vocab, b_vocab)
+        
         # compute temporal softmax loss from vocab vectors
-        loss, doutput = temporal_softmax_loss(output_vectors, captions_out, mask)
+        loss, dscores = temporal_softmax_loss(scores, captions_out, mask)
+        
         # backward pass --
-        doutput_vectors, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(doutput, cache_vocab)
+        dh, dW_vocab, db_vocab = temporal_affine_backward(dscores, cache_vocab)
+        
         if self.cell_type == 'rnn':
-            dinput_vectors, dinitial_state, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(doutput_vectors, cache_rnn)
+            dinput_vectors, dh0, dWx, dWh, db = rnn_backward(dh, cache_rnn)
         elif self.cell_type == 'lstm':
-            pass
-        grads['W_embed'] = word_embedding_backward(dinput_vectors, cache_embed)
-        _, grads['W_proj'], grads['b_proj'] = affine_backward(dinitial_state, cache_proj)
+            dinput_vectors, dh0, dWx, dWh, db = lstm_backward(dh, cache_lstm)
+            
+        dW_embed = word_embedding_backward(dinput_vectors, cache_embed)
+        _, dW_proj, db_proj = affine_backward(dh0, cache_proj)
+        
+        # record gradients
+        grads['W_embed'] = dW_embed
+        grads['W_proj'] = dW_proj
+        grads['b_proj'] = db_proj
+        grads['Wx'] = dWx
+        grads['Wh'] = dWh
+        grads['b'] = db
+        grads['W_vocab'] = dW_vocab
+        grads['b_vocab'] = db_vocab
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -221,19 +238,27 @@ class CaptioningRNN(object):
         # a loop.                                                                 #
         ###########################################################################
         captions = np.zeros((features.shape[0], max_length), dtype=np.int32)
+        
         # project input features to initial state
-        hidden_state = features.dot(W_proj) + b_proj
+        h = features.dot(W_proj) + b_proj
+        if self.cell_type == 'lstm':
+            c = np.zeros_like(h)
+        
         # set first word to <START>
         curr_word = self._start
+        
         # run in loop: embed input word, run recurrent unit, and record output word
         for t in range(max_length):
             word_vector = W_embed[curr_word]
+            
             if self.cell_type == 'rnn':
-                hidden_state, _ = rnn_step_forward(word_vector, hidden_state, Wx, Wh, b)
+                h, _ = rnn_step_forward(word_vector, h, Wx, Wh, b)
             elif self.cell_type == 'lstm':
-                pass
-            prob_vector = hidden_state.dot(W_vocab) + b_vocab
-            curr_word = np.argmax(prob_vector, axis=1)
+                h, c, _ = lstm_step_forward(word_vector, h, c, Wx, Wh, b)
+            
+            scores = h.dot(W_vocab) + b_vocab
+            curr_word = np.argmax(scores, axis=1)
+            
             captions[:, t] = curr_word
         ############################################################################
         #                             END OF YOUR CODE                             #
