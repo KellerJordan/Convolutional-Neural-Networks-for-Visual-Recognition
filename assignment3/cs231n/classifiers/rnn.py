@@ -137,7 +137,28 @@ class CaptioningRNN(object):
         # defined above to store loss and gradients; grads[k] should give the      #
         # gradients for self.params[k].                                            #
         ############################################################################
-        pass
+        # forward pass --
+        # project input features to initial state
+        initial_state, cache_proj = affine_forward(features, W_proj, b_proj)
+        # convert input caption to word embeddings
+        input_vectors, cache_embed = word_embedding_forward(captions_in, W_embed)
+        # run recurrent cells on initial state and word vectors
+        if self.cell_type == 'rnn':
+            hidden_states, cache_rnn = rnn_forward(input_vectors, initial_state, Wx, Wh, b)
+        elif self.cell_type == 'lstm':
+            pass
+        # project hidden states to un-normalized log probability of vocab vectors
+        output_vectors, cache_vocab = temporal_affine_forward(hidden_states, W_vocab, b_vocab)
+        # compute temporal softmax loss from vocab vectors
+        loss, doutput = temporal_softmax_loss(output_vectors, captions_out, mask)
+        # backward pass --
+        doutput_vectors, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(doutput, cache_vocab)
+        if self.cell_type == 'rnn':
+            dinput_vectors, dinitial_state, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(doutput_vectors, cache_rnn)
+        elif self.cell_type == 'lstm':
+            pass
+        grads['W_embed'] = word_embedding_backward(dinput_vectors, cache_embed)
+        _, grads['W_proj'], grads['b_proj'] = affine_backward(dinitial_state, cache_proj)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -199,7 +220,21 @@ class CaptioningRNN(object):
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
         ###########################################################################
-        pass
+        captions = np.zeros((features.shape[0], max_length), dtype=np.int32)
+        # project input features to initial state
+        hidden_state = features.dot(W_proj) + b_proj
+        # set first word to <START>
+        curr_word = self._start
+        # run in loop: embed input word, run recurrent unit, and record output word
+        for t in range(max_length):
+            word_vector = W_embed[curr_word]
+            if self.cell_type == 'rnn':
+                hidden_state, _ = rnn_step_forward(word_vector, hidden_state, Wx, Wh, b)
+            elif self.cell_type == 'lstm':
+                pass
+            prob_vector = hidden_state.dot(W_vocab) + b_vocab
+            curr_word = np.argmax(prob_vector, axis=1)
+            captions[:, t] = curr_word
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
