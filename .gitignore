@@ -1,6 +1,6 @@
 *.pyc
 vscode/
 .ipynb_checkpoints/
-datasets/*
+datasets/
 !datasets/*.sh
 *.so
